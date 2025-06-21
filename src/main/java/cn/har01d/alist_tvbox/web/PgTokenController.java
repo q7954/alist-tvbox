@@ -1,9 +1,11 @@
 package cn.har01d.alist_tvbox.web;
 
+import cn.har01d.alist_tvbox.config.AppProperties;
 import cn.har01d.alist_tvbox.domain.DriverType;
 import cn.har01d.alist_tvbox.entity.*;
 import cn.har01d.alist_tvbox.service.SubscriptionService;
 import cn.har01d.alist_tvbox.util.Constants;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
@@ -31,6 +33,7 @@ public class PgTokenController {
     private final PikPakAccountRepository pikPakAccountRepository;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
+    private final AppProperties appProperties;
 
     public PgTokenController(SubscriptionService subscriptionService,
                              AccountRepository accountRepository,
@@ -38,7 +41,8 @@ public class PgTokenController {
                              DriverAccountRepository driverAccountRepository,
                              PikPakAccountRepository pikPakAccountRepository,
                              ObjectMapper objectMapper,
-                             RestTemplateBuilder builder) {
+                             RestTemplateBuilder builder,
+                             AppProperties appProperties) {
         this.subscriptionService = subscriptionService;
         this.accountRepository = accountRepository;
         this.settingRepository = settingRepository;
@@ -46,11 +50,12 @@ public class PgTokenController {
         this.pikPakAccountRepository = pikPakAccountRepository;
         this.objectMapper = objectMapper;
         this.restTemplate = builder.build();
+        this.appProperties = appProperties;
     }
 
     @GetMapping("/version")
     public Object version() throws IOException {
-        String remote = restTemplate.getForObject("http://har01d.org/pg.version", String.class);
+        String remote = restTemplate.getForObject("http://har01d.org/pg.version?system=" + appProperties.getSystemId(), String.class);
         String local = "";
         Path path = Utils.getDataPath("pg_version.txt");
         if (Files.exists(path)) {
@@ -73,7 +78,14 @@ public class PgTokenController {
         });
         settingRepository.findById(Constants.OPEN_TOKEN_URL).map(Setting::getValue).ifPresent(url -> objectNode.put("open_api_url", url));
         driverAccountRepository.findByTypeAndMasterTrue(DriverType.QUARK).stream().findFirst().ifPresent(share -> objectNode.put("quark_cookie", share.getCookie()));
-        driverAccountRepository.findByTypeAndMasterTrue(DriverType.PAN115).stream().findFirst().ifPresent(share -> objectNode.put("pan115_cookie", share.getCookie()));
+        driverAccountRepository.findByTypeAndMasterTrue(DriverType.PAN115).stream().findFirst().ifPresent(share -> {
+            objectNode.put("pan115_cookie", share.getCookie());
+            try {
+                objectNode.put("pan115_delete_code", objectMapper.readTree(share.getAddition()).get("delete_code").asText());
+            } catch (Exception e) {
+                log.warn("", e);
+            }
+        });
         driverAccountRepository.findByTypeAndMasterTrue(DriverType.UC).stream().findFirst().ifPresent(share -> objectNode.put("uc_cookie", share.getCookie()));
         driverAccountRepository.findByTypeAndMasterTrue(DriverType.PAN123).stream().findFirst().ifPresent(share -> {
             objectNode.put("pan123_username", share.getUsername());
@@ -96,7 +108,6 @@ public class PgTokenController {
             objectNode.put("thunder_password", share.getPassword());
             objectNode.put("thunder_captchatoken", share.getToken());
         });
-        settingRepository.findById("delete_code_115").map(Setting::getValue).ifPresent(code -> objectNode.put("pan115_delete_code", code));
         pikPakAccountRepository.getFirstByMasterTrue().ifPresent(account -> {
             objectNode.put("pikpak_username", account.getUsername());
             objectNode.put("pikpak_password", account.getPassword());
