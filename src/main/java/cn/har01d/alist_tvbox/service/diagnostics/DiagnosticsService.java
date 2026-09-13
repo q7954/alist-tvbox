@@ -108,6 +108,7 @@ public class DiagnosticsService {
         sections.add(databaseSection(findings));
         sections.add(storageSection(findings));
         sections.add(driveSettingsSection(findings));
+        sections.add(configSection(findings));
         sections.add(subscriptionSection(findings));
         sections.add(searchSourceSection(findings));
         sections.add(logSection(findings));
@@ -361,6 +362,34 @@ public class DiagnosticsService {
             section.add("网盘账号", accounts.size() + " 个(停用 " + accountDisabled + "): "
                     + types.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue())
                             .reduce((a, b) -> a + ", " + b).orElse("无"));
+        } catch (Exception e) {
+            addUnavailable(section, findings, e);
+        }
+        return section;
+    }
+
+    // ------------------------------------------------------------------ 全局配置
+
+    /**
+     * 设置页(ConfigView)的全局配置:安全/订阅/调试开关 + 数据版本 + TMDB 状态。
+     * Key 名与 ConfigView.vue 保存口径一致;Key 类只报已配置否,值不进报告。
+     */
+    private DiagnosticsSectionDto configSection(List<DiagnosticsFindingDto> findings) {
+        DiagnosticsSectionDto section = new DiagnosticsSectionDto("配置");
+        try {
+            section.add("强制登录AList", onOff(settingBool("alist_login", false)));
+            section.add("安全订阅", onOff(settingBool("enabled_token", false)));
+            section.add("亲友共享", onOff(settingBool("anonymous_access", false)));
+            section.add("订阅HTTPS", onOff(settingBool("enable_https", false)));
+            section.add("替换阿里token地址", onOff(settingBool("replace_ali_token", false)));
+            section.add("调试日志", onOff(settingBool("debug_log", false)));
+            section.add("AList调试模式", onOff(settingBool("alist_debug", false)));
+            section.add("TMDB Key", setting("tmdb_api_key", "").isBlank() ? "未配置" : "已配置");
+            section.add("TMDB 代理", setting("tmdb_api_host", "").isBlank() ? "默认" : setting("tmdb_api_host", ""));
+            section.add("开放Token认证URL", setting("open_token_url", "").isBlank() ? "默认" : setting("open_token_url", ""));
+            section.add("索引数据版本", setting("index_version", "无"));
+            section.add("豆瓣数据版本", setting("movie_version", "无"));
+            section.add("115索引版本", setting("index115.share_code", "").isBlank() ? "未下载" : setting("index115.share_code", ""));
         } catch (Exception e) {
             addUnavailable(section, findings, e);
         }

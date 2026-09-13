@@ -220,6 +220,12 @@ class DiagnosticsServiceTest {
         settings.put("local_proxy_config", "{\"QUARK\":{\"enabled\":true,\"concurrency\":5},\"UC\":{\"enabled\":false}}");
         settings.put("offline_download_config", "{\"enabled\":true,\"driverType\":\"THUNDER\",\"accountId\":3}");
         settings.put("panlian_accounts", "[{\"username\":\"SECRETUSER\",\"password\":\"SECRETPASS\"},{\"username\":\"b\"}]");
+        settings.put("enabled_token", "true");
+        settings.put("tmdb_api_key", "SECRETTMDBKEY");
+        settings.put("tmdb_api_host", "tmdb.example.worker.dev");
+        settings.put("movie_version", "1341");
+        settings.put("open_token_url", "https://ali.har01d.cn/access_token");
+        settings.put("index115.share_code", "abc123DEF");
         when(settingRepository.findById(anyString())).thenAnswer(invocation -> {
             String key = invocation.getArgument(0);
             String value = settings.get(key);
@@ -236,11 +242,19 @@ class DiagnosticsServiceTest {
                 new SearchSourceThrottle(), flywayProvider, new cn.har01d.alist_tvbox.config.AppProperties());
         DiagnosticsReportDto report = service.buildReport();
 
-        assertEquals(7, report.getSections().size());
+        assertEquals(8, report.getSections().size());
         String text = report.getText();
-        for (String name : new String[]{"[系统]", "[数据库]", "[存储]", "[网盘]", "[追剧]", "[搜索源]", "[日志]"}) {
+        for (String name : new String[]{"[系统]", "[数据库]", "[存储]", "[网盘]", "[配置]", "[追剧]", "[搜索源]", "[日志]"}) {
             assertTrue(text.contains(name), "missing section " + name);
         }
+        // 配置区块:安全/订阅/调试开关 + TMDB 状态 + 数据版本(Key 只报已配置)
+        assertTrue(text.contains("安全订阅: 开"));
+        assertTrue(text.contains("TMDB Key: 已配置"));
+        assertTrue(text.contains("TMDB 代理: tmdb.example.worker.dev"));
+        assertTrue(text.contains("豆瓣数据版本: 1341"));
+        assertTrue(text.contains("开放Token认证URL: https://ali.har01d.cn/access_token"));
+        assertTrue(text.contains("115索引版本: abc123DEF"));
+        assertFalse(text.contains("SECRETTMDBKEY"), "TMDB Key 值绝不进报告");
         // 网盘区块:开关/延时/离线下载/代理驱动名(UI 原名口径)
         assertTrue(text.contains("夸克→123"));
         assertTrue(text.contains("夸克/UC分享用TV帐号: 开"));
